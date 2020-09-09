@@ -2,10 +2,12 @@
 from torch.utils.data import Dataset,DataLoader
 import torchvision.transforms as transforms
 from datasets.image_augment import DataAugment
+from PIL import Image
 import os
 import cv2
 import numpy as np
 import pyclipper
+import torch
 class Dataset_PSE(Dataset):
     def __init__(self,config,train_or_val='train'):
         self.augment=DataAugment()
@@ -28,30 +30,49 @@ class Dataset_PSE(Dataset):
 
         #gen the masks which is text ignonred
         boxs_text_no = []
-        for box,text_ignore in zip(label['boxs'],label['text_ignore']):
+        for box,text_ignore in zip(boxs,label['text_ignore']):
             if text_ignore==True:
-                boxs_text_no.append(np.array(box))
+                boxs_text_no.append(np.array(box).astype(np.int))
         # cv2.polylines(image,pts=boxs_text_yes,isClosed=True,color=(255,0,0),thickness=3)
-        cv2.polylines(image, pts=boxs_text_no, isClosed=True, color=(0, 0, 0),thickness=2)
-        train_mask=255*np.ones(shape=(image.shape[0],image.shape[1]),dtype=np.uint8)
-        cv2.fillPoly(train_mask,pts=boxs_text_no,color=(0))
-        # cv2.fillPoly(image,,pts=boxs_text_no,color=(0))
+        # cv2.polylines(image, pts=boxs_text_no, isClosed=True, color=(100, 100, 0),thickness=2)
 
+
+        train_mask=np.ones(shape=(image.shape[0],image.shape[1]),dtype=np.uint8)
+        cv2.fillPoly(train_mask,pts=boxs_text_no,color=(0))
         #gen the masks which is text and kernel
-        text_kernel_mask=self.gen_label_text_kernel(label['boxs'],label['text_ignore'],5,0.5)
+        text_kernel_mask=self.gen_label_text_kernel(image_shape=image.shape,boxs=boxs,n=self.config.MODEL.PSE.n,m=self.config.MODEL.PSE.m)
+        imgs=self.augment.random_crop_author([image,text_kernel_mask.transpose([1,2,0]),train_mask],img_size=(self.config.DATASET.IMAGE_SIZE.H,self.config.DATASET.IMAGE_SIZE.W))
+        image_crop=transforms.ToTensor()(Image.fromarray(imgs[0]))
+        text_kernel_masks=imgs[1]
+        train_mask=imgs[2]
+
+
+        # cv2.imshow('image',image_crop)
+        # cv2.imshow('kernel',text_kernel_masks[:,:,0])
+        # cv2.imshow('train_mask',train_mask)
+        # cv2.waitKey(10000)
+        # train_mask=cv2.resize(train_mask,(0,0),fx=0.5,fy=0.5)
+        # image = cv2.resize(image, (0, 0), fx=0.5, fy=0.5)
         # cv2.imshow('ttt',train_mask)
         # cv2.imshow('image',image)
-        # cv2.waitKey(10000)
-        return image,text_kernel_mask,train_mask
+        # cv2.waitKey(5000)
+        return image_crop,text_kernel_masks,train_mask
 
     def augment_image(self,image,boxs,config):
         h_train,w_train=config.DATASET.IMAGE_SIZE.H,config.DATASET.IMAGE_SIZE.W
         image,boxs=self.augment.random_scale(image,scales=np.array([0.5,1.0,2.0,3.0]),text_polys=boxs)
         h,w,c=image.shape
-        l_min=min(h,w)
-        if l_min<
+        radio=max(h_train/h,w_train/w)
+        if radio>1:
+            boxs=boxs*radio
+            image=cv2.resize(image,(0,0),fx=radio,fy=radio)
+        flag=np.random.randn()
+        if flag<0.5:
+            image,boxs=self.augment.horizontal_flip(image,boxs)
+        if flag<0.5:
+            image,boxs=self.augment.random_rotate_img_bbox(image,boxs,degrees=10)
 
-        return image,boxs
+        return image,boxs.astype(np.int)
     def load_imagename_labels(self,labels_root):
         labels=os.listdir(labels_root)
         labels_dict={}
@@ -78,8 +99,45 @@ class Dataset_PSE(Dataset):
                 image_names.append(image_name)
 
         return image_names,labels_dict
-    def gen_label_text_kernel(self,boxs,text_ignored,n,m):
-        label_text_kernel_mask=0
-        return label_text_kernel_mask
+    def gen_label_text_kernel(self,image_shape,boxs,n,m):
+
+        label_text_kernel_masks=np.zeros(shape=(n,image_shape[0],image_shape[1]))
+        for box in boxs:
+            for i in range(1,n+1):
+                r=1-(1-m)*(n-i)/(n-1)
+                offset=cv2.contourArea(box)*(1-r*r)/cv2.arcLength(box,closed=True)
+                pco = pyclipper.PyclipperOffset()
+                pco.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+                box_shrink = pco.Execute(-offset)
+                cv2.fillPoly(label_text_kernel_masks[i-1,:,:],np.array(box_shrink),color=(1))
+        # i=0
+        # for label_text_kernel_mask in label_text_kernel_masks:
+        #     cv2.imshow(str(i),label_text_kernel_mask)
+        #     i+=1
+        # cv2.waitKey(100000)
+
+        return label_text_kernel_masks
+
+    def check_and_validate_polys(self,polys, xxx_todo_changeme):
+        '''
+        check so that the text poly is in the same direction,
+        and also filter some invalid polygons
+        :param polys:
+        :param tags:
+        :return:
+        '''
+        (h, w) = xxx_todo_changeme
+        if polys.shape[0] == 0:
+            return polys
+        polys[:, :, 0] = np.clip(polys[:, :, 0], 0, w - 1)  # x coord not max w-1, and not min 0
+        polys[:, :, 1] = np.clip(polys[:, :, 1], 0, h - 1)  # y coord not max h-1, and not min 0
+
+        validated_polys = []
+        for poly in polys:
+            p_area = cv2.contourArea(poly)
+            if abs(p_area) < 1:
+                continue
+            validated_polys.append(poly)
+        return np.array(validated_polys)
 
 

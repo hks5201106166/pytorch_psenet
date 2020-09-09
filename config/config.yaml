@@ -1,4 +1,4 @@
-CUDNN:
+CUDA:
   GPU: '0'
 DATASET:
   IMAGE_SIZE:
@@ -10,7 +10,7 @@ DATASET:
   LABEL_VAL_ROOT: "../data/detection/test/gt"
 TRAIN:
   EPOCH: 300
-  BATCH: 32
+  BATCH: 4
   SHUFFLE: True
   WORKERS: 0
   RESUME:
@@ -28,7 +28,16 @@ TEST:
   WORKERS: 8
 MODEL:
   NAME: 'PSENET'
-  BACKBONE: 'resnet18'#['resnet18','resnet34','resnet50','resnet101','resnet152','densenet','mobilenet_v2','mobileNet_v3_Large','mobileNet_v3_Small']
+  BACKBONE: 'resnet152'#['resnet18','resnet34','resnet50','resnet101','resnet152','densenet','mobilenet_v2','mobileNet_v3_Large','mobileNet_v3_Small']
   NUM_OUPUT: 256
+  PRETRAINED: False
+  PSE:
+    n: 6
+    m: 0.5
+  LOSS:
+    LAMBDA: 0.7
+    OHEM:
+      negation: 3
+      position: 1
 
 
