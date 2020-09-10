@@ -44,7 +44,7 @@ class Dataset_PSE(Dataset):
         imgs=self.augment.random_crop_author([image,text_kernel_mask.transpose([1,2,0]),train_mask],img_size=(self.config.DATASET.IMAGE_SIZE.H,self.config.DATASET.IMAGE_SIZE.W))
         image_crop=transforms.ToTensor()(Image.fromarray(imgs[0]))
         text_kernel_masks=imgs[1]
-        train_mask=imgs[2]
+        train_mask=np.float32(imgs[2])
 
 
         # cv2.imshow('image',image_crop)

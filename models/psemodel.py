@@ -107,12 +107,12 @@ class PSELOSS:
         kernels_masks=text_kernel_masks[:,:,:,:-1]
         text_ps=output[:,-1,:,:]
         kernels_ps=output[:,:-1,:,:]
+
         loss_text=self.dice_text(images,text_ps,text_masks,train_masks,self.config)
-        # loss_kernel=self.dice_kernel(kernels_ps,kernels_masks)
-        # loss=loss_text+loss_kernel*self.config.MODEL.LOSS.LAMBDA
-        loss=1
-        loss_text=2
-        loss_kernel=3
+
+        loss_kernel=self.dice_kernel(text_ps,kernels_ps,kernels_masks,train_masks)
+        loss=loss_text*self.config.MODEL.LOSS.LAMBDA+loss_kernel*(1-self.config.MODEL.LOSS.LAMBDA)
+
         return loss,loss_text,loss_kernel
     def dice_text(self,images,text_ps,text_masks,train_masks,config):
         ratio=config.MODEL.LOSS.OHEM.negation/config.MODEL.LOSS.OHEM.position
@@ -124,16 +124,43 @@ class PSELOSS:
             train_mask=train_masks[i,:,:]
             image=images[i,:,:,:]
             ohem_select_masks.append(self.ohem(image,text_p,text_mask,train_mask,ratio))
+        loss_text=self.dice(text_ps,text_masks,train_masks,ohem_select_masks)
+        return loss_text
+    def dice_kernel(self,text_ps,kernels_ps,kernels_masks,train_masks):
+        batchsize,kernel_nums,_,_=kernels_ps.shape
+        kernel_loss_all=torch.Tensor([0.0]).to(torch.device('cuda:'+self.config.CUDA.GPU))
+        for i in range(batchsize):
+            dice_kernels=torch.Tensor([0.0]).to(torch.device('cuda:'+self.config.CUDA.GPU))
+            for n in range(kernel_nums):
+                text_p=text_ps[i,:,:].view(-1).float()
+                kernels_p=kernels_ps[i,n,:,:].view(-1).float()
+                kernels_mask=kernels_masks[i,:,:,n].view(-1).float()
 
-        return None
-    def dice_kernel(self,text_ps,kernels_ps,train_masks):
-        return None
-    def dice(self,):
-        loss=1
+                text_p_mask=text_p>0.5
+                text_p_mask=text_p_mask.float()
+                dice_kernels+=2*torch.sum((kernels_p*text_p_mask)*(kernels_mask*text_p_mask))/\
+                              (torch.sum((kernels_p*text_p_mask)*(kernels_p*text_p_mask))+torch.sum((kernels_mask*text_p_mask)*(kernels_mask*text_p_mask))+0.0001)
+            kernel_loss=1-dice_kernels/kernel_nums
+            kernel_loss_all+=kernel_loss
+        kernel_loss_all/=batchsize
+        return kernel_loss_all
+    def dice(self,preds,gts,train_masks,select_masks):
+        batch_size=preds.shape[0]
+        loss=torch.Tensor([0.0]).to(torch.device('cuda:'+self.config.CUDA.GPU))
+        for i in range(batch_size):
+            pred=preds[i,:,:].view(-1)
+            gt=gts[i,:,:].view(-1).float()
+            train_mask=train_masks[i].view(-1).float()
+            select_mask=select_masks[i].view(-1).float()
+
+            pred_with_mask=pred*train_mask*select_mask
+            gt_with_mask=gt*train_mask*select_mask
+            loss+=1-(2*torch.sum(pred_with_mask*gt_with_mask))/(torch.sum(pred_with_mask*pred_with_mask)+torch.sum(gt_with_mask*gt_with_mask)+0.0001)
+        loss/=batch_size
         return loss
     def ohem(self,image,text_p,text_mask,train_mask,ratio):
 
-        cv2.waitKey(0)
+
         position_nums_train=torch.sum((text_mask==1)&(train_mask==1))
         if position_nums_train.cpu().numpy()==0:
             return train_mask
@@ -143,20 +170,18 @@ class PSELOSS:
         negation_nums_train=min(negation_nums,ratio*position_nums_train)
 
         text_p_sort=text_p[(text_mask==0)&(train_mask==1)].view(-1).sort(descending=True)
-        if len(text_p_sort[0])==0:
-            print()
-        threshold=text_p_sort[0][negation_nums_train.long()]
+        threshold=text_p_sort[0][negation_nums_train.long()-1]
 
         negation_select_mask=(text_p>threshold)&(text_mask==0)&(train_mask==1)
-        tt=torch.sum((text_p>threshold)&(text_mask==0)&(train_mask==1))
+        # tt=torch.sum((text_p>threshold)&(text_mask==0)&(train_mask==1))
         position_select_mask=(text_mask==1)&(train_mask==1)
         ohem_select_mask=negation_select_mask|position_select_mask
 
 
-        ohem_select_mask=ohem_select_mask.cpu().numpy()
-        image=np.array(transforms.ToPILImage()(image.cpu()))
-        negation_select_mask=negation_select_mask.cpu().numpy()
-        position_select_mask=position_select_mask.cpu().numpy()
+        # ohem_select_mask=ohem_select_mask.cpu().numpy()
+        # image=np.array(transforms.ToPILImage()(image.cpu()))
+        # negation_select_mask=negation_select_mask.cpu().numpy()
+        # position_select_mask=position_select_mask.cpu().numpy()
         # cv2.imshow('ttt', image)
         # cv2.imshow('kk',image*np.stack([ohem_select_mask,ohem_select_mask,ohem_select_mask],axis=2))
         # cv2.imshow('neg',image*np.stack([negation_select_mask,negation_select_mask,negation_select_mask],axis=2))

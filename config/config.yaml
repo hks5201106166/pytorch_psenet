@@ -1,43 +1,52 @@
 CUDA:
-  GPU: '0'
+    GPU: '0'
 DATASET:
-  IMAGE_SIZE:
-    H: 640
-    W: 640   # resized width: 160
-  IMAGE_TRAIN_ROOT: "../data/detection/train/imgs"
-  LABEL_TRAIN_ROOT: "../data/detection/train/gt"
-  IMAGE_VAL_ROOT: "../data/detection/test/imgs"
-  LABEL_VAL_ROOT: "../data/detection/test/gt"
+    IMAGE_SIZE:
+        H: 640
+        W: 640   # resized width: 160
+    IMAGE_TRAIN_ROOT: "../data/detection/train/imgs"
+    LABEL_TRAIN_ROOT: "../data/detection/train/gt"
+    IMAGE_VAL_ROOT: "../data/detection/test/imgs"
+    LABEL_VAL_ROOT: "../data/detection/test/gt"
 TRAIN:
-  EPOCH: 300
-  BATCH: 4
-  SHUFFLE: True
-  WORKERS: 0
-  RESUME:
-    IS_RESUME: True
-    MODEL_SAVE: '/home/ubuntu/pytorch_crnn_ctc/pytorch_rcnn_ctc-idcard_class/save_outputs/2020-08-05 07:26:41_resnet18_lstm-layer:2_lstm-hidden-nums:256/models_saved/epoch_0_acc_0.9672.pth'
-  OPTIMIZER: 'adam'
-  LR: 0.0001
-  LR_STEP: [4, 8]
-  LR_FACTOR: 0.1
-  SHOW_STEP: 10
+    EPOCH: 300
+    BATCH: 4
+    SHUFFLE: True
+    WORKERS: 0
+    RESUME:
+        IS_RESUME: False
+        MODEL_SAVE: ''
+    OPTIMIZER: 'adam'
+    LR: 0.001
+    SCHEDULER:
+        IS_MultiStepLR: False #if True,the scheduler choice the multisteplr,if False,the scheduler choice the warmuplr
+        MultiStepLR:
+            LR_STEP: [4, 8]
+            LR_FACTOR: 0.1
+        WarnUpLR:
+            milestones: [20, 30]
+            gamma: 0.1
+            warmup_factor: 0.1
+            warmup_iters: 1
+            warmup_method: "linear"
+    SHOW_STEP: 10
 
 TEST:
-  BATCH: 32
-  SHUFFLE: False
-  WORKERS: 8
+    BATCH: 32
+    SHUFFLE: False
+    WORKERS: 8
 MODEL:
-  NAME: 'PSENET'
-  BACKBONE: 'resnet152'#['resnet18','resnet34','resnet50','resnet101','resnet152','densenet','mobilenet_v2','mobileNet_v3_Large','mobileNet_v3_Small']
-  NUM_OUPUT: 256
-  PRETRAINED: False
-  PSE:
-    n: 6
-    m: 0.5
-  LOSS:
-    LAMBDA: 0.7
-    OHEM:
-      negation: 3
-      position: 1
+    NAME: 'PSENET'
+    BACKBONE: 'resnet152'#['resnet18','resnet34','resnet50','resnet101','resnet152','densenet','mobilenet_v2','mobileNet_v3_Large','mobileNet_v3_Small']
+    NUM_OUPUT: 256
+    PRETRAINED: True
+    PSE:
+        n: 6
+        m: 0.5
+    LOSS:
+        LAMBDA: 0.7
+        OHEM:
+          negation: 3
+          position: 1
 
 
