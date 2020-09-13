@@ -9,10 +9,11 @@ import numpy as np
 import pyclipper
 import torch
 class Dataset_PSE(Dataset):
-    def __init__(self,config,train_or_val='train'):
+    def __init__(self,config,train):
         self.augment=DataAugment()
         self.config=config
-        if train_or_val=='train':
+        self.train=train
+        if train==True:
             self.image_names,self.labels=self.load_imagename_labels(config.DATASET.LABEL_TRAIN_ROOT)
         else:
             self.image_names,self.labels = self.load_imagename_labels(config.DATASET.LABEL_VAL_ROOT)
@@ -26,7 +27,10 @@ class Dataset_PSE(Dataset):
         image=cv2.imread(os.path.join(self.config.DATASET.IMAGE_TRAIN_ROOT,image_name))
         image=cv2.cvtColor(image,code=cv2.COLOR_BGR2RGB)
         label=self.labels[self.image_names[index]]
-        image,boxs=self.augment_image(image,boxs=np.array(label['boxs']),config=self.config)
+        if self.train==True:
+            image,boxs=self.augment_image(image,boxs=np.array(label['boxs']),config=self.config)
+        else:
+            boxs=np.array(label['boxs'],dtype=np.int)
 
         #gen the masks which is text ignonred
         boxs_text_no = []
@@ -40,11 +44,16 @@ class Dataset_PSE(Dataset):
         train_mask=np.ones(shape=(image.shape[0],image.shape[1]),dtype=np.uint8)
         cv2.fillPoly(train_mask,pts=boxs_text_no,color=(0))
         #gen the masks which is text and kernel
-        text_kernel_mask=self.gen_label_text_kernel(image_shape=image.shape,boxs=boxs,n=self.config.MODEL.PSE.n,m=self.config.MODEL.PSE.m)
-        imgs=self.augment.random_crop_author([image,text_kernel_mask.transpose([1,2,0]),train_mask],img_size=(self.config.DATASET.IMAGE_SIZE.H,self.config.DATASET.IMAGE_SIZE.W))
-        image_crop=transforms.ToTensor()(Image.fromarray(imgs[0]))
-        text_kernel_masks=imgs[1]
-        train_mask=np.float32(imgs[2])
+        text_kernel_masks=self.gen_label_text_kernel(image_shape=image.shape,boxs=boxs,n=self.config.MODEL.PSE.n,m=self.config.MODEL.PSE.m)
+        if self.train==True:
+            imgs=self.augment.random_crop_author([image,text_kernel_masks.transpose([1,2,0]),train_mask],img_size=(self.config.DATASET.IMAGE_SIZE.H,self.config.DATASET.IMAGE_SIZE.W))
+            image=transforms.ToTensor()(Image.fromarray(imgs[0]))
+            text_kernel_masks=imgs[1]
+            train_mask=np.float32(imgs[2])
+        else:
+            image=transforms.ToTensor()(Image.fromarray(image))
+            text_kernel_masks=np.float32(text_kernel_masks.transpose((1,2,0)))
+
 
 
         # cv2.imshow('image',image_crop)
@@ -56,7 +65,7 @@ class Dataset_PSE(Dataset):
         # cv2.imshow('ttt',train_mask)
         # cv2.imshow('image',image)
         # cv2.waitKey(5000)
-        return image_crop,text_kernel_masks,train_mask
+        return image,text_kernel_masks,train_mask
 
     def augment_image(self,image,boxs,config):
         h_train,w_train=config.DATASET.IMAGE_SIZE.H,config.DATASET.IMAGE_SIZE.W

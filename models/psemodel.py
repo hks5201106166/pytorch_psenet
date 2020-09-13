@@ -7,10 +7,11 @@ import torch
 import numpy as np
 import cv2
 import torchvision.transforms as transforms
+from torch.autograd import Variable
 class PSENET(Module):
-    def __init__(self,config,train):
+    def __init__(self,config):
         super(PSENET, self).__init__()
-        self.train=train
+
         self.config=config
         self.backbone=self.get_backbone(config)
         self.layer_conection=self.get_layer_cnnection(self.config)
@@ -24,7 +25,7 @@ class PSENET(Module):
                                               nn.BatchNorm2d(config.MODEL.NUM_OUPUT),nn.ReLU(inplace=True))
         self.layer_output=nn.Sequential(nn.Conv2d(config.MODEL.NUM_OUPUT,config.MODEL.PSE.n,kernel_size=1,stride=1),nn.Sigmoid())
 
-    def forward(self, x):
+    def forward(self, x,train):
         x2,x3,x4,x5=self.backbone(x)
 
         x5_layer = self.layer_conection[3](x5)
@@ -44,7 +45,7 @@ class PSENET(Module):
         layers_concat=self.layers_concat(x2_layer,x3_layer,x4_layer,x5_layer)
         x_last=self.layers_concat_conv(layers_concat)
         output=self.layer_output(x_last)
-        if self.train==True:
+        if train==True:
             output= F.interpolate(output,size=(x.shape[2:]),mode='bilinear',align_corners=False)
 
         return output
