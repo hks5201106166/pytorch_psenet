@@ -33,12 +33,10 @@ if __name__ == "__main__":
     config=config_args()
 
     #define the train dataset
-    dataset=Dataset_PSE(config=config,train=True)
+    dataset=Dataset_PSE(config=config)
     dataloader = DataLoader(dataset=dataset, batch_size=config.TRAIN.BATCH, shuffle=config.TRAIN.SHUFFLE, num_workers=config.TRAIN.WORKERS)
 
-    #define the val dataset
-    dataset_val=Dataset_PSE(config=config,train=False)
-    dataloader_val = DataLoader(dataset=dataset_val, batch_size=config.VALID.BATCH, shuffle=config.VALID.SHUFFLE, num_workers=config.VALID.WORKERS)
+
 
     #define the psenet model , psenet loss , optimizer and schedular
     psenet=PSENET(config=config).to(torch.device('cuda:'+config.CUDA.GPU))
@@ -67,21 +65,22 @@ if __name__ == "__main__":
     if config.TRAIN.RESUME.FLAG==True:
         logger.info('model resume:'+config.TRAIN.RESUME.MODEL_SAVE_PATH)
         checkpoint = torch.load(config.TRAIN.RESUME.MODEL_SAVE_PATH)
+
         psenet.load_state_dict(checkpoint['net'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch'] + 1
     for epoch in range(start_epoch,config.TRAIN.EPOCH):
-        schedular.step()
+        schedular.step(epoch=epoch)
         #for one training epoch
         psenet.train()
-        train_one_epoch(dataloader, config, psenet, pseloss, optimizer, loggerinfo, logger, schedular, writer, epoch)
-        #for one validation epoch
-        psenet.eval()
-        valid_one_epoch(dataloader_val,config,psenet,pseloss,optimizer,loggerinfo,logger,schedular,writer,epoch)
-
-        state = {'net':psenet.state_dict(), 'optimizer':optimizer.state_dict(), 'epoch':epoch}
-        if epoch%50==0:
-            torch.save(state,config.MODEL.MODEL_SAVE_DIR+'/'+nowtime+'/'+str(epoch)+'_model.pth')
+        loss, loss_tex, loss_kernel=train_one_epoch(dataloader, config, psenet, pseloss, optimizer, loggerinfo, logger, schedular, writer, epoch)
+        # for one validation epoch
+        if (0.3<loss<0.4 and epoch%4==0) or (epoch+1)%10==0 or loss<0.2:
+            psenet.eval()
+            recall,precision,f1=valid_one_epoch(config,psenet,pseloss,optimizer,schedular,writer,epoch)
+            state = {'net':psenet.state_dict(), 'optimizer':optimizer.state_dict(), 'epoch':epoch}
+            torch.save(state,config.MODEL.MODEL_SAVE_DIR+'/'+nowtime+'/'+str(epoch)+'_f1:'+str(f1)+'_'+'recall:'+str(recall)+'_'+'precision:'+str(precision)+'_model.pth')
+            logger.info(str(epoch)+'f1:'+str(f1)+'_'+'recall:'+str(recall)+'_'+'precision:'+str(precision))
 
 
     writer.close()

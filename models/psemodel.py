@@ -46,11 +46,11 @@ class PSENET(Module):
         x_last=self.layers_concat_conv(layers_concat)
         output=self.layer_output(x_last)
         if train==True:
-            output= F.interpolate(output,size=(x.shape[2:]),mode='bilinear',align_corners=False)
+            output= F.interpolate(output,size=(x.shape[2:]),mode='bilinear',align_corners=True)
 
         return output
     def upsample_add(self,input_upsample,input):
-        return F.interpolate(input_upsample,size=(input.shape[2:]),mode='bilinear')+input
+        return F.interpolate(input_upsample,size=(input.shape[2:]),mode='bilinear',align_corners=False)+input
     def get_backbone(self,config):
         if config.MODEL.BACKBONE=='resnet18':
             return resnet18(pretrained=config.MODEL.PRETRAINED)
@@ -178,7 +178,9 @@ class PSELOSS:
         position_select_mask=(text_mask==1)&(train_mask==1)
         ohem_select_mask=negation_select_mask|position_select_mask
 
-
+        # text_p=text_p.cpu().detach().numpy()>0.7
+        # text_p=np.uint8(text_p)*255
+        # cv2.imshow('pred_text',text_p)
         # ohem_select_mask=ohem_select_mask.cpu().numpy()
         # image=np.array(transforms.ToPILImage()(image.cpu()))
         # negation_select_mask=negation_select_mask.cpu().numpy()
@@ -187,7 +189,7 @@ class PSELOSS:
         # cv2.imshow('kk',image*np.stack([ohem_select_mask,ohem_select_mask,ohem_select_mask],axis=2))
         # cv2.imshow('neg',image*np.stack([negation_select_mask,negation_select_mask,negation_select_mask],axis=2))
         # cv2.imshow('position', image * np.stack([position_select_mask, position_select_mask, position_select_mask], axis=2))
-        # cv2.waitKey(0)
+        # cv2.waitKey(10000)
         return ohem_select_mask
 
 

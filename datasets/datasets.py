@@ -9,14 +9,11 @@ import numpy as np
 import pyclipper
 import torch
 class Dataset_PSE(Dataset):
-    def __init__(self,config,train):
+    def __init__(self,config):
         self.augment=DataAugment()
         self.config=config
-        self.train=train
-        if train==True:
-            self.image_names,self.labels=self.load_imagename_labels(config.DATASET.LABEL_TRAIN_ROOT)
-        else:
-            self.image_names,self.labels = self.load_imagename_labels(config.DATASET.LABEL_VAL_ROOT)
+        self.image_names,self.labels=self.load_imagename_labels(config.DATASET.LABEL_TRAIN_ROOT)
+
 
     def __len__(self):
         return len(self.image_names)
@@ -27,10 +24,9 @@ class Dataset_PSE(Dataset):
         image=cv2.imread(os.path.join(self.config.DATASET.IMAGE_TRAIN_ROOT,image_name))
         image=cv2.cvtColor(image,code=cv2.COLOR_BGR2RGB)
         label=self.labels[self.image_names[index]]
-        if self.train==True:
-            image,boxs=self.augment_image(image,boxs=np.array(label['boxs']),config=self.config)
-        else:
-            boxs=np.array(label['boxs'],dtype=np.int)
+
+        image,boxs=self.augment_image(image,boxs=np.array(label['boxs']),config=self.config)
+
 
         #gen the masks which is text ignonred
         boxs_text_no = []
@@ -45,14 +41,12 @@ class Dataset_PSE(Dataset):
         cv2.fillPoly(train_mask,pts=boxs_text_no,color=(0))
         #gen the masks which is text and kernel
         text_kernel_masks=self.gen_label_text_kernel(image_shape=image.shape,boxs=boxs,n=self.config.MODEL.PSE.n,m=self.config.MODEL.PSE.m)
-        if self.train==True:
-            imgs=self.augment.random_crop_author([image,text_kernel_masks.transpose([1,2,0]),train_mask],img_size=(self.config.DATASET.IMAGE_SIZE.H,self.config.DATASET.IMAGE_SIZE.W))
-            image=transforms.ToTensor()(Image.fromarray(imgs[0]))
-            text_kernel_masks=imgs[1]
-            train_mask=np.float32(imgs[2])
-        else:
-            image=transforms.ToTensor()(Image.fromarray(image))
-            text_kernel_masks=np.float32(text_kernel_masks.transpose((1,2,0)))
+
+        imgs=self.augment.random_crop_author([image,text_kernel_masks.transpose([1,2,0]),train_mask],img_size=(self.config.DATASET.IMAGE_SIZE.H,self.config.DATASET.IMAGE_SIZE.W))
+        image=transforms.ToTensor()(Image.fromarray(imgs[0]))
+        text_kernel_masks=imgs[1]
+        train_mask=np.float32(imgs[2])
+
 
 
 
