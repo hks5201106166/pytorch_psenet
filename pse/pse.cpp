@@ -9,7 +9,8 @@
 #include "include/pybind11/numpy.h"
 #include "include/pybind11/stl.h"
 #include "include/pybind11/stl_bind.h"
-
+#include <vector>
+using namespace std;
 namespace py = pybind11;
 
 namespace pse{

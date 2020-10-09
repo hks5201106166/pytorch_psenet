@@ -70,17 +70,18 @@ if __name__ == "__main__":
         optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch'] + 1
     for epoch in range(start_epoch,config.TRAIN.EPOCH):
-        schedular.step(epoch=epoch)
+
         #for one training epoch
-        psenet.train()
-        loss, loss_tex, loss_kernel=train_one_epoch(dataloader, config, psenet, pseloss, optimizer, loggerinfo, logger, schedular, writer, epoch)
+        # psenet.train()
+        # loss, loss_tex, loss_kernel=train_one_epoch(dataloader, config, psenet, pseloss, optimizer, loggerinfo, logger, schedular, writer, epoch)
         # for one validation epoch
-        if (0.3<loss<0.4 and epoch%4==0) or (epoch+1)%10==0 or loss<0.2:
-            psenet.eval()
-            recall,precision,f1=valid_one_epoch(config,psenet,pseloss,optimizer,schedular,writer,epoch)
-            state = {'net':psenet.state_dict(), 'optimizer':optimizer.state_dict(), 'epoch':epoch}
-            torch.save(state,config.MODEL.MODEL_SAVE_DIR+'/'+nowtime+'/'+str(epoch)+'_f1:'+str(f1)+'_'+'recall:'+str(recall)+'_'+'precision:'+str(precision)+'_model.pth')
-            logger.info(str(epoch)+'f1:'+str(f1)+'_'+'recall:'+str(recall)+'_'+'precision:'+str(precision))
+        # if (0.3<loss<0.4 and epoch%4==0) or (epoch+1)%10==0 or loss<0.2:
+        psenet.eval()
+        recall,precision,f1=valid_one_epoch(config,psenet,pseloss,optimizer,schedular,writer,epoch)
+        state = {'net':psenet.state_dict(), 'optimizer':optimizer.state_dict(), 'epoch':epoch}
+        torch.save(state,config.MODEL.MODEL_SAVE_DIR+'/'+nowtime+'/'+str(epoch)+'_f1:'+str(f1)+'_'+'recall:'+str(recall)+'_'+'precision:'+str(precision)+'_model.pth')
+        logger.info(str(epoch)+'f1:'+str(f1)+'_'+'recall:'+str(recall)+'_'+'precision:'+str(precision))
+        schedular.step(epoch=epoch)
 
 
     writer.close()
